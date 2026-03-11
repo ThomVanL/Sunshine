@@ -41,6 +41,10 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 TEST_P(AudioTest, TestEncode) {
+#ifdef __APPLE__
+  GTEST_SKIP() << "Skipping on macOS: audio capture requires TCC (Transparency, Consent, and Control) "
+                  "microphone permissions which may hang in CI without user consent";
+#endif
   std::thread timer([&] {
     // Terminate the audio capture after 100 ms
     std::this_thread::sleep_for(100ms);
