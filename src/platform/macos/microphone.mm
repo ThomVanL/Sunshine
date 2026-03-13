@@ -72,6 +72,21 @@ namespace platf {
       BOOST_LOG(debug) << "Set hostAudioEnabled to: "sv << (host_audio_enabled ? "YES" : "NO");
 
       if (config::audio.sink.empty()) {
+        // Before attempting system audio tap setup, verify that the required audio capture
+        // permission has already been granted. AudioHardwareCreateProcessTap will present a
+        // TCC consent dialog the first time it is called; in headless/CI environments that
+        // dialog is never dismissed, causing the call to block indefinitely. Checking the
+        // authorization status up-front lets us fail fast — matching the behaviour of the
+        // master branch where findMicrophone("") returns nil immediately when no device
+        // with that name exists.
+        AVAuthorizationStatus authStatus = [AVCaptureDevice authorizationStatusForMediaType:AVMediaTypeAudio];
+        if (authStatus != AVAuthorizationStatusAuthorized) {
+          BOOST_LOG(error) << "System audio tap (AudioHardwareCreateProcessTap) requires audio capture permission "sv
+                           << "which has not been granted (AVAuthorizationStatus: "sv << static_cast<int>(authStatus)
+                           << "). Grant microphone/audio access in System Settings or via tccutil."sv;
+          return nullptr;
+        }
+
         // Use macOS system-wide audio tap
         BOOST_LOG(info) << "Using macOS system audio tap for capture."sv;
         BOOST_LOG(info) << "Sample rate: "sv << sample_rate << ", Frame size: "sv << frame_size << ", Channels: "sv << channels;
