@@ -51,6 +51,12 @@ jobs:
           cp -f ./build/sunshine.rb ./homebrew/sunshine.rb
           cat ./homebrew/sunshine.rb
 
+      - name: Force formula tests on fork
+        run: |
+          # Ensure Homebrew validation builds and runs test_sunshine on fork runs.
+          perl -i -pe 's/^  IS_UPSTREAM_REPO = .*/  IS_UPSTREAM_REPO = true/' ./homebrew/sunshine.rb
+          grep -n "IS_UPSTREAM_REPO" ./homebrew/sunshine.rb
+
       - name: Seed macOS TCC permissions
         run: |
           set -euo pipefail
