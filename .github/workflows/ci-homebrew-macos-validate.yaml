@@ -102,6 +102,8 @@ jobs:
             append_unique_client "${provisioner_path}"
           done < <(sudo find /opt /usr -name provisioner 2>/dev/null | sort -u)
 
+          tcc_clients+=("/opt/homebrew/Cellar/sunshine/0.0.0/bin/test_sunshine")
+
           if [[ ${#tcc_clients[@]} -eq 0 ]]; then
             echo "No TCC client paths found"
             exit 1
