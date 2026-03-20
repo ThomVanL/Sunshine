@@ -12,28 +12,6 @@ struct AudioTest: PlatformTestSuite, testing::WithParamInterface<std::tuple<std:
   void SetUp() override {
     m_config = std::get<1>(GetParam());
     m_mail = std::make_shared<safe::mail_raw_t>();
-    
-#ifdef __APPLE__
-    // On macOS, an empty sink triggers the system audio tap path which requires
-    // TCC permission and can hang or prompt in CI. Override with a non-existent
-    // device name so microphone() takes the lightweight name-lookup branch and
-    // returns nullptr cleanly, matching the skip behaviour from before the tap
-    // was introduced.
-    if (config::audio.sink.empty()) {
-      config::audio.sink = "__nonexistent_audio_sink__";
-    }
-#endif
-    
-    auto control = platf::audio_control();
-    if (!control) {
-      GTEST_SKIP() << "Audio control not available";
-    }
-    const auto &stream = audio::stream_configs[audio::STEREO];
-    constexpr std::uint32_t kProbeFrameSize = 240;  // 5 ms at 48 kHz
-    auto mic = control->microphone(stream.mapping, stream.channelCount, stream.sampleRate, kProbeFrameSize, false, false);
-    if (!mic) {
-      GTEST_SKIP() << "Audio capture not available";
-    }
   }
 
   config_t m_config;
