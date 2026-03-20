@@ -61,94 +61,41 @@ jobs:
         run: |
           set -euo pipefail
 
-          append_unique_client() {
-            local candidate_path="$1"
-
-            if [[ -z "${candidate_path}" || ! -e "${candidate_path}" ]]; then
-              return
-            fi
-
-            for existing_path in "${tcc_clients[@]:-}"; do
-              if [[ "${existing_path}" == "${candidate_path}" ]]; then
-                return
-              fi
-            done
-
-            tcc_clients+=("${candidate_path}")
+          configure_system_tccdb() {
+            local values=$1
+            local dbPath="/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sudo sqlite3 "$dbPath" "$sqlQuery"
           }
 
-          insert_tcc_row() {
-            local service="$1"
-            local client_path="$2"
-            local db_path="$3"
-            local column_count="$4"
-            local values="'${service}','${client_path}',1,2,4,1,NULL,NULL,0,'UNUSED',NULL,0,1687786159"
-
-            if [[ "${column_count}" -ge 17 ]]; then
-              values="${values},NULL,NULL,'UNUSED',1687786159"
-            fi
-
-            echo "Granting ${service} to ${client_path} in ${db_path}"
-            sudo sqlite3 "${db_path}" "INSERT OR IGNORE INTO access VALUES(${values});"
+          configure_user_tccdb() {
+            local values=$1
+            local dbPath="$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+            local sqlQuery="INSERT OR IGNORE INTO access VALUES($values);"
+            sqlite3 "$dbPath" "$sqlQuery"
           }
 
-          tcc_clients=()
-          append_unique_client "/bin/bash"
-          append_unique_client "/bin/sh"
-          append_unique_client "/bin/zsh"
-          append_unique_client "/opt/homebrew/bin/brew"
-
-          while IFS= read -r provisioner_path; do
-            append_unique_client "${provisioner_path}"
-          done < <(sudo find /opt /usr -name provisioner 2>/dev/null | sort -u)
-
-          tcc_clients+=("/opt/homebrew/Cellar/sunshine/0.0.0/bin/test_sunshine")
-        
-          if [[ ${#tcc_clients[@]} -eq 0 ]]; then
-            echo "No TCC client paths found"
-            exit 1
-          fi
-
-          echo "TCC client paths: ${tcc_clients[*]}"
-
-          db_paths=(
-            "/Library/Application Support/com.apple.TCC/TCC.db"
-            "$HOME/Library/Application Support/com.apple.TCC/TCC.db"
+          systemValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
           )
-          services=(
-            "kTCCServiceAccessibility"
-            "kTCCServiceMicrophone"
-            "kTCCServiceAudioCapture"
-            "kTCCServiceScreenCapture"
-          )
-
-          for db_path in "${db_paths[@]}"; do
-            if [[ ! -f "${db_path}" ]]; then
-              echo "Skipping missing TCC database: ${db_path}"
-              continue
-            fi
-
-            echo "Column names for ${db_path}"
-            echo "-------------------"
-            sudo sqlite3 "${db_path}" "PRAGMA table_info(access);"
-
-            column_count=$(sudo sqlite3 "${db_path}" "PRAGMA table_info(access);" | wc -l | tr -d ' ')
-            echo "Detected access column count: ${column_count}"
-
-            for service in "${services[@]}"; do
-              echo "Current permissions for ${service} in ${db_path}"
-              echo "-------------------"
-              sudo sqlite3 "${db_path}" "SELECT * FROM access WHERE service='${service}';"
-
-              for client_path in "${tcc_clients[@]}"; do
-                insert_tcc_row "${service}" "${client_path}" "${db_path}" "${column_count}"
-              done
-
-              echo "Updated permissions for ${service} in ${db_path}"
-              echo "-------------------"
-              sudo sqlite3 "${db_path}" "SELECT * FROM access WHERE service='${service}';"
-            done
+          for values in "${systemValuesArray[@]}"; do
+            configure_system_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
           done
+
+          userValuesArray=(
+            "'kTCCServiceAudioCapture','/opt/hca/hosted-compute-agent',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/opt/hca/start_hca.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/provisioner/provisioner',1,2,4,1,NULL,NULL,NULL,'UNUSED',NULL,0,1736467200"
+            "'kTCCServiceAudioCapture','/usr/local/opt/runner/runprovisioner.sh',1,2,0,1,NULL,NULL,NULL,'UNUSED',NULL,0,1576661342"
+          )
+          for values in "${userValuesArray[@]}"; do
+            configure_user_tccdb "$values,NULL,NULL,'UNUSED',${values##*,}"
+          done
+
+          echo "TCC permissions configured."
 
       - run: echo "::add-matcher::.github/matchers/gcc-strip3.json"
       - name: Validate Homebrew Formula
